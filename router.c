@@ -37,11 +37,12 @@ int main(int argc, char *argv[])
 	DIE(rtable == NULL, "memory");
 	rtable_len = read_rtable(argv[1], rtable);
 
-	arp_table = malloc(sizeof(struct arp_entry) * 100);
+	arp_table = malloc(sizeof(struct arp_entry) * 1000000);
 	DIE(arp_table == NULL, "memory");
 	arptable_len =  parse_arp_table("arp_table.txt", arp_table);
 
 	q = queue_create();
+	struct route_table_entry *route_table_entry = NULL;
 
 	while (1) {
 
@@ -59,10 +60,10 @@ int main(int argc, char *argv[])
 
 		printf("\nA PACKET WAS RECEIVED\n");
 
-		struct route_table_entry *route_table_entry = NULL;
 
 		/* Check if we got an IPv4 packet */
 		if (eth_hdr->ether_type == ntohs(ETHERTYPE_IP)) {
+			printf("AM AJUNS PE IPV4\n");
 			if (ip(eth_hdr, &route_table_entry, buf)) {
 				continue;
 			}
@@ -70,10 +71,8 @@ int main(int argc, char *argv[])
 		}
 		/* Check if we got an ARP packet */
 		else if (eth_hdr->ether_type == ntohs(ETHERTYPE_ARP)) {
-			// if (arp(eth_hdr, &route_table_entry, buf)) {
-			// 	continue;
-			// }
-			// arp(eth_hdr, &route_table_entry, buf);
+			printf("AM AJUNS PE ARP\n");
+			arp(eth_hdr, &route_table_entry, buf);
 			continue;
 		}
 		else {
@@ -115,7 +114,7 @@ int ip(struct ether_header *eth_hdr, struct route_table_entry **route_table_entr
 	struct iphdr *ip_hdr = (struct iphdr *)(buf + sizeof(struct ether_header));
 
 	// merge doar daca iphdr protocol e 1
-	struct icmphdr *icmp_hdr = (struct icmphdr *)(buf + sizeof(struct ether_header) + sizeof(struct iphdr));
+	// struct icmphdr *icmp_hdr = (struct icmphdr *)(buf + sizeof(struct ether_header) + sizeof(struct iphdr));
 
     uint16_t checksum_tmp = ntohs(ip_hdr->check);
     ip_hdr->check = 0;
@@ -152,17 +151,20 @@ int ip(struct ether_header *eth_hdr, struct route_table_entry **route_table_entr
 
 
     struct arp_entry *arp_entry = get_arp_entry((*route_table_entry)->next_hop);
+    // struct arp_entry *arp_entry = get_arp_entry(ip_hdr->daddr);
+
     if (!arp_entry) {
+			printf("ACUM SE VA FACE UN REQUEST\n");
 		// create an arp request
 		size_t request_len = sizeof(struct ether_header) + sizeof(struct arp_header);
 		char *request = arp_request(*route_table_entry);
 		send_to_link((*route_table_entry)->interface, request, request_len);
 
 		// trebuie sa adaug pachetul in coada
-		struct queued_packet queued_packet = copy_packet(buf, request_len, (*route_table_entry)->interface);
+		struct queued_packet queued_packet = copy_packet(buf, request_len, 
+											 (*route_table_entry)->interface);
 		queue_enq(q, &queued_packet);
 
-        printf("There's no MAC address to that destination IP\n");
         return 1;
     }
 
@@ -186,18 +188,54 @@ void arp(struct ether_header *eth_hdr, struct route_table_entry **route_table_en
 
 	// Check if there's an ongoing request
 	if (op == 1) {
+			printf("AM AJUNS PE RAMURA OP 1\n");
 		char *reply = arp_reply(buf, *route_table_entry);
 		size_t reply_len = sizeof(struct ether_header) + sizeof(struct arp_header);
-
+			printf("AM AJUNS SA DAU SEND SAU SAL?\n");
+		
 		send_to_link((*route_table_entry)->interface, reply, reply_len);
 		// trebuie un free la reply
-	} // Check if there's an ongoing reply 
-	else if (op == 2) {
+	} 
+	// Check if there's an ongoing reply 
+	else if (arp_hdr->tpa == inet_addr(get_interface_ip((*route_table_entry)->interface))
+			 && op == 2) {
+			printf("AM AJUNS PE RAMURA OP 2\n");
+
 		// Add the packet to the local cache
+		struct arp_entry new_entry;
 
-		// Check the queue
+		new_entry.ip = arp_hdr->spa;
+		memcpy(new_entry.mac, arp_hdr->sha, 6); // sau eth hdr -> shost?
+		arp_table[arptable_len++] = new_entry;
+
+		// Check the queue element by element
+		queue new_q = queue_create();
+		while (!queue_empty(q)) {
+			struct queued_packet *packet = (struct queued_packet *)(queue_deq(q));
+			struct iphdr *ip_hdr = (struct iphdr *)(packet->data + sizeof(struct ether_header));
+
+			struct route_table_entry* new_route = get_best_route(ip_hdr->daddr);
+			struct arp_entry *arp_entry = get_arp_entry(new_route->next_hop);
+
+			// If there is an existing entry in the cache, send the packet
+			if (arp_entry) {
+				struct ether_header *eth_hdr = (struct ether_header *)packet->data;
+				memcpy(eth_hdr->ether_dhost, arp_entry->mac, 6);
+				get_interface_mac(new_route->interface, eth_hdr->ether_shost);
+				send_to_link(packet->interface, packet->data, packet->len);
+			} else {
+				queue_enq(q, packet);
+			}
+		}
+
+		// Restore the queue
+		while (!queue_empty(new_q)) {
+			struct queued_packet *packet = (struct queued_packet *)(queue_deq(new_q));
+			queue_enq(q, packet);
+		}
+	} else {
+			printf("NICIO RAMURA DIN ARP\n");
 	}
-
 }
 
 void print_mac_address(uint8_t* mac) {
@@ -214,7 +252,7 @@ void print_ip_address(int32_t ip) {
 struct queued_packet copy_packet(char *buf, size_t len, int interface) {
 	struct queued_packet new_packet;
 
-	memcpy(new_packet.payload, buf, len);
+	memcpy(new_packet.data, buf, len);
     new_packet.len = len;
     new_packet.interface = interface;
 
@@ -223,7 +261,6 @@ struct queued_packet copy_packet(char *buf, size_t len, int interface) {
 
 /* 
 * Make an ARP request if the ARP entry was not found
-* returns the length of the ARP packet
 */
 char *arp_request(struct route_table_entry *route_table_entry) {
 	// Create a packet with Ethernet header and with ARP header
@@ -267,20 +304,26 @@ char *arp_request(struct route_table_entry *route_table_entry) {
 
 char *arp_reply(char *buf, struct route_table_entry *route_table_entry) {
 	struct arp_header *arp_hdr = (struct arp_header *)(buf + sizeof(struct ether_header));
-
+			printf("INTRU IN REPLY\n");
 	char *reply = calloc(MAX_PACKET_LEN, 1);
 	struct ether_header *new_eth_hdr = (struct ether_header *) reply;
 	struct arp_header *new_arp_hdr = (struct arp_header *) (reply + sizeof(struct ether_header));
 	// memset(reply, 0, sizeof(reply));
+			printf("1\n");
 
 	// Ethernet Header
-	new_eth_hdr->ether_type = ETHERTYPE_ARP; // OK
+	new_eth_hdr->ether_type = ETHERTYPE_ARP;
+			printf("2\n");
 	
+
 	// Mac source
-    get_interface_mac(route_table_entry->interface, new_eth_hdr->ether_shost); // OK
+	// TODO: lasa variabila
+    get_interface_mac(route_table_entry->interface, new_eth_hdr->ether_shost);
+			printf("3\n");
 
 	// MAC destination
-	memcpy(new_eth_hdr->ether_dhost, arp_hdr->sha, 6); // OK
+	memcpy(new_eth_hdr->ether_dhost, arp_hdr->sha, 6);
+			printf("4\n");
 
 	// ARP Header
 	new_arp_hdr->htype = htons(1);
@@ -289,19 +332,23 @@ char *arp_reply(char *buf, struct route_table_entry *route_table_entry) {
 	new_arp_hdr->plen = 4;
 
 	// Operation type
-	arp_hdr->op = htons(2); // OK
+	arp_hdr->op = htons(2);
+			printf("5\n");
 
 	// Sender MAC address
-	memcpy(new_arp_hdr->sha, new_eth_hdr->ether_shost, 6); // OK
+	memcpy(new_arp_hdr->sha, new_eth_hdr->ether_shost, 6);
+			printf("6\n");
 
 	// Sender IP address
-	new_arp_hdr->spa = arp_hdr->tpa; // OK
+	new_arp_hdr->spa = arp_hdr->tpa;
 
 	// Target MAC address
-	memcpy(new_arp_hdr->tha, new_eth_hdr->ether_dhost, 6); // OK
+	memcpy(new_arp_hdr->tha, new_eth_hdr->ether_dhost, 6);
+			printf("7\n");
 
 	// Target IP address
-	new_arp_hdr->tpa = arp_hdr->spa; // OK
+	new_arp_hdr->tpa = arp_hdr->spa;
+			printf("IES DIN REPLY\n");
 
 	return reply;
 }

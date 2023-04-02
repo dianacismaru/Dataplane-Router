@@ -14,8 +14,8 @@
 
 struct queued_packet {
     size_t len;
+	char data[MAX_PACKET_LEN];
     int interface;
-	char payload[MAX_PACKET_LEN];
 };
 
 #endif /* _UTILS_H_ */
