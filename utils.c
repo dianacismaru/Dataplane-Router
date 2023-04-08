@@ -7,8 +7,6 @@ extern int rtable_len;
 extern struct arp_entry *arp_table;
 extern int arptable_len;
 
-extern queue q;
-
 extern TrieNode *root;
 
 struct route_table_entry *get_best_route(uint32_t ip_dest) {
@@ -45,4 +43,14 @@ struct arp_entry *get_arp_entry(uint32_t given_ip) {
 	}
 
 	return NULL;
+}
+
+struct queued_packet copy_packet(char *buf, size_t len, int interface) {
+	struct queued_packet new_packet;
+
+	memcpy(new_packet.data, buf, len);
+    new_packet.len = len;
+    new_packet.interface = interface;
+
+	return new_packet;
 }

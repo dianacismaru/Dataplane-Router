@@ -26,6 +26,9 @@ struct queued_packet {
 };
 
 extern struct route_table_entry *get_best_route(uint32_t ip_dest);
+
 extern struct arp_entry *get_arp_entry(uint32_t given_ip);
+
+struct queued_packet copy_packet(char *buf, size_t len, int interface);
 
 #endif /* _UTILS_H_ */
