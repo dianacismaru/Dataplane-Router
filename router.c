@@ -185,20 +185,21 @@ int ip(struct ether_header *eth_hdr, struct route_table_entry **route_table_entr
 void arp(struct ether_header *eth_hdr, struct route_table_entry **route_table_entry, char *buf) {
 	struct arp_header *arp_hdr = (struct arp_header *)(buf + sizeof(struct ether_header));
 	uint16_t op = ntohs(arp_hdr->op);
+	size_t len = sizeof(struct ether_header) + sizeof(struct arp_header);
 
 	// Check if there's an ongoing request
 	if (op == 1) {
 			printf("AM AJUNS PE RAMURA OP 1\n");
 		char *reply = arp_reply(buf, *route_table_entry);
-		size_t reply_len = sizeof(struct ether_header) + sizeof(struct arp_header);
+		// size_t reply_len = sizeof(struct ether_header) + sizeof(struct arp_header);
 			printf("AM AJUNS SA DAU SEND SAU SAL?\n");
 		
-		send_to_link((*route_table_entry)->interface, reply, reply_len);
+		send_to_link((*route_table_entry)->interface, reply, len);
 		// trebuie un free la reply
 	} 
 	// Check if there's an ongoing reply 
-	else if (arp_hdr->tpa == inet_addr(get_interface_ip((*route_table_entry)->interface))
-			 && op == 2) {
+	else if (/*arp_hdr->tpa == inet_addr(get_interface_ip((*route_table_entry)->interface))
+			 && */ op == 2) {
 			printf("AM AJUNS PE RAMURA OP 2\n");
 
 		// Add the packet to the local cache
@@ -233,9 +234,12 @@ void arp(struct ether_header *eth_hdr, struct route_table_entry **route_table_en
 			struct queued_packet *packet = (struct queued_packet *)(queue_deq(new_q));
 			queue_enq(q, packet);
 		}
-	} else {
-			printf("NICIO RAMURA DIN ARP\n");
-	}
+	}/* else {
+			printf("AM PRIMIT UN REPLY, DAR NU ESTE PENTRU MINE, TREBUIE SA IL DAU MAI DEPARTE\n");
+
+			struct route_table_entry *route_table_entry = get_best_route(arp_hdr->tpa);
+			send_to_link(route_table_entry->interface, buf, len);
+	}*/
 }
 
 void print_mac_address(uint8_t* mac) {
