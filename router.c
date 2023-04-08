@@ -1,22 +1,17 @@
 /* Copyright (C) 2023 Cismaru Diana-Iuliana (321CA / 2022-2023) */
-#include "queue.h"
-#include "lib.h"
 #include "utils.h"
-#include "protocols.h"
-
-#include <string.h>
-#include <arpa/inet.h> 
+#include "iptrie.h"
 
 struct route_table_entry *rtable;
 int rtable_len;
+
+TrieNode *root;
 
 struct arp_entry *arp_table;
 int arptable_len;
 
 queue q;
 
-struct route_table_entry *get_best_route(uint32_t ip_dest);
-struct arp_entry *get_arp_entry(uint32_t given_ip);
 int ip(struct ether_header *eth_hdr, struct route_table_entry **route_table_entry, char *buf);
 void arp(struct ether_header *eth_hdr, struct route_table_entry **route_table_entry, char *buf);
 struct queued_packet copy_packet(char *buf, size_t len, int interface);
@@ -37,9 +32,12 @@ int main(int argc, char *argv[])
 	DIE(rtable == NULL, "memory");
 	rtable_len = read_rtable(argv[1], rtable);
 
+	/* Add the route table entries to the Trie*/
+	root = create_ip_trie();
+
 	arp_table = malloc(sizeof(struct arp_entry) * 1000000);
 	DIE(arp_table == NULL, "memory");
-	arptable_len =  parse_arp_table("arp_table.txt", arp_table);
+	arptable_len = parse_arp_table("arp_table.txt", arp_table);
 
 	q = queue_create();
 	struct route_table_entry *route_table_entry = NULL;
@@ -65,6 +63,7 @@ int main(int argc, char *argv[])
 		if (eth_hdr->ether_type == ntohs(ETHERTYPE_IP)) {
 			printf("AM AJUNS PE IPV4\n");
 			if (ip(eth_hdr, &route_table_entry, buf)) {
+				// An error has occured, so drop the packet
 				continue;
 			}
 			send_to_link(route_table_entry->interface, buf, len);
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
 		/* Check if we got an ARP packet */
 		else if (eth_hdr->ether_type == ntohs(ETHERTYPE_ARP)) {
 			printf("AM AJUNS PE ARP\n");
-			arp(eth_hdr, &route_table_entry, buf);
+			// arp(eth_hdr, &route_table_entry, buf);
 			continue;
 		}
 		else {
@@ -80,33 +79,6 @@ int main(int argc, char *argv[])
 			continue;
 		}
 	}
-}
-
-struct route_table_entry *get_best_route(uint32_t ip_dest) {
-	uint32_t best_mask = 0;
-	struct route_table_entry *best_route = NULL;
-
-	for (int i = 0; i < rtable_len; i++) {
-		uint32_t current_mask = rtable[i].mask;
-
-		if ((rtable[i].prefix & current_mask) == (ip_dest & current_mask) 
-			&& current_mask >= best_mask) {
-			best_mask = current_mask;
-			best_route = &rtable[i];
-		}
-	}
-
-	return best_route;
-}
-
-struct arp_entry *get_arp_entry(uint32_t given_ip) {
-	for (int i = 0; i < arptable_len; i++) {
-		if (arp_table[i].ip == given_ip) {
-			return &arp_table[i];
-		}
-	}
-
-	return NULL;
 }
 
 int ip(struct ether_header *eth_hdr, struct route_table_entry **route_table_entry, char *buf) {
