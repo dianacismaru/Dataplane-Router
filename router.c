@@ -50,12 +50,23 @@ int main(int argc, char *argv[])
 		if (eth_hdr->ether_type == htons(ETHERTYPE_IP)) {
 			struct iphdr *ip_hdr = (struct iphdr *)(buf + sizeof(struct ether_header));
 
+			if (ip_hdr->daddr == inet_addr(get_interface_ip(interface)) && ip_hdr->protocol == IPPROTO_ICMP) {
+				struct icmphdr *icmp_hdr = (struct icmphdr *)(buf + IP_PACKET_LEN);
+
+				/* Check if an ECHO REQUEST was received */
+				if (icmp_hdr->type == ICMP_ECHOREQ) {
+					/* Send an ECHO REPLY */
+					send_icmp(buf, interface, ICMP_ECHOREPLY);
+				}
+
+				continue;
+			}
+
 			uint16_t checksum_tmp = ntohs(ip_hdr->check);
 			ip_hdr->check = 0;
 			ip_hdr->check = checksum((uint16_t *)ip_hdr, sizeof(struct iphdr));
 
 			if (ip_hdr->check != checksum_tmp) {
-				printf("Incorrect checksum\n");
 				continue;
 			}
 
@@ -64,11 +75,13 @@ int main(int argc, char *argv[])
 
 			/* If LPM was not found, send an ICMP message */
 			if (!route_table_entry) {
+				send_icmp(buf, interface, ICMP_DEST_UNREACH);
 				continue;
 			}
 
 			/* If TTL has expired, send an ICMP message */
 			if (ip_hdr->ttl <= 1) {
+				send_icmp(buf, interface, ICMP_TIME_EXCEEDED);
 				continue;
 			}
 
@@ -113,7 +126,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 	}
-	
+
 	free(arp_table);
 	free(rtable);
 	free_trienode(root);
