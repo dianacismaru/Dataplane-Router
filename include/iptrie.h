@@ -17,4 +17,6 @@ extern void insert(uint32_t ip_address, uint32_t mask, int index);
 
 extern TrieNode *create_ip_trie();
 
+extern void free_trienode(TrieNode* node);
+
 #endif /* _IPTRIE_H */

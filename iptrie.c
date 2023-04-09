@@ -15,6 +15,7 @@ int count_bits_set(uint32_t mask) {
     return count;
 }
 
+/* Create a Trie Node for the IP Trie */
 TrieNode *create_node() {
     TrieNode *new_node = malloc(sizeof(TrieNode));
     new_node->bit0 = NULL;
@@ -24,16 +25,16 @@ TrieNode *create_node() {
     return new_node;
 }
 
+/* Insert a prefix in the Trie */
 void insert(uint32_t ip_address, uint32_t mask, int index) {
     int bits_set = count_bits_set(ntohl(mask));
     
-    // vreau sa adaug doar partea prefixata din host order
+    /* Add only the prefixed part from Host Order IP address */
     ip_address = ntohl(ip_address) >> (32 - bits_set);
 
     TrieNode* current_node = root;
-    int i;
 
-    for (i = bits_set - 1; i >= 0; i--) {
+    for (int i = bits_set - 1; i >= 0; i--) {
         int bit = (ip_address >> i) & 1;
 
         if (bit) {
@@ -47,6 +48,7 @@ void insert(uint32_t ip_address, uint32_t mask, int index) {
         }
     }   
 
+    /* At the end of the sequence, store the entry index */
     current_node->entry_index = index;
 }
 
@@ -59,4 +61,16 @@ TrieNode *create_ip_trie() {
     }
 
     return root;
+}
+
+void free_trienode(TrieNode* node) {
+    if (node->bit0) {
+        free_trienode(node->bit0);
+    }
+    
+    if (node->bit1) {
+        free_trienode(node->bit1);
+    }
+
+    free(node);
 }
