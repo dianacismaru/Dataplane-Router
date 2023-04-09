@@ -10,6 +10,7 @@ extern TrieNode *root;
 
 extern queue q;
 
+/* Calculate LPM in the IP Trie */
 struct route_table_entry *get_best_route(uint32_t ip_dest) {
     ip_dest = ntohl(ip_dest);
 
@@ -33,6 +34,7 @@ struct route_table_entry *get_best_route(uint32_t ip_dest) {
     return &rtable[prev->entry_index];
 }
 
+/* Parse the ARP table and get the entry corresponding the given IP address */
 struct arp_entry *get_arp_entry(uint32_t given_ip) {
 	for (int i = 0; i < arptable_len; i++) {
 		if (arp_table[i].ip == given_ip) {
@@ -43,6 +45,7 @@ struct arp_entry *get_arp_entry(uint32_t given_ip) {
 	return NULL;
 }
 
+/* Parse the queue and send the packets that have found the MAC destinations */
 void parse_cache() {
 	queue new_q = queue_create();
 
@@ -67,6 +70,7 @@ void parse_cache() {
 	q = new_q;
 }
 
+/* Send an ARP Request */
 void arp_request(char *buf, struct route_table_entry *route_table_entry) {
 	char packet[MAX_PACKET_LEN];
 	memcpy(packet, buf, IP_PACKET_LEN);
@@ -83,8 +87,7 @@ void arp_request(char *buf, struct route_table_entry *route_table_entry) {
 	get_interface_mac(route_table_entry->interface, eth_hdr->ether_shost);
 
 	// MAC destination = Broadcast address
-	uint8_t broadcast_addr[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	memcpy(eth_hdr->ether_dhost, broadcast_addr, 6);
+    hwaddr_aton("ff:ff:ff:ff:ff:ff", eth_hdr->ether_dhost);
 
 	// ARP Header
 	arp_hdr->htype = htons(1);
@@ -100,8 +103,7 @@ void arp_request(char *buf, struct route_table_entry *route_table_entry) {
 	get_interface_mac(route_table_entry->interface, arp_hdr->sha);
 
 	// Target MAC address
-	uint8_t dest_mac_addr[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	memcpy(arp_hdr->tha, dest_mac_addr, 6);
+    hwaddr_aton("00:00:00:00:00:00", arp_hdr->tha);
 
 	// Target IP address
 	arp_hdr->tpa = route_table_entry->next_hop;
@@ -109,6 +111,7 @@ void arp_request(char *buf, struct route_table_entry *route_table_entry) {
 	send_to_link(route_table_entry->interface, buf, ARP_PACKET_LEN);
 }
 
+/* Send an ARP Reply */
 void arp_reply(char *buf, int interface) {
 	struct ether_header *eth_hdr = (struct ether_header *) buf;
 	struct arp_header *arp_hdr = (struct arp_header *)(buf + ETHER_LEN);
@@ -135,4 +138,39 @@ void arp_reply(char *buf, int interface) {
 	uint32_t tmp = arp_hdr->tpa;
 	arp_hdr->tpa = arp_hdr->spa;
 	arp_hdr->spa = tmp;
+}
+
+/* Send an ICMP message depending on the givem type */
+void send_icmp(char *buf, int interface, uint8_t type) {
+    struct ether_header *eth_hdr = (struct ether_header *) buf;
+    struct iphdr *ip_hdr = (struct iphdr *)(buf + sizeof(struct ether_header));
+    struct icmphdr *icmp_hdr = (struct icmphdr *)(buf + IP_PACKET_LEN);
+
+    /* Ethernet Header */
+	memcpy(eth_hdr->ether_dhost, eth_hdr->ether_shost, 6);
+	get_interface_mac(interface, eth_hdr->ether_shost);
+	
+    /* IP Header */
+    ip_hdr->version = 4;
+	ip_hdr->ihl = 5;
+	ip_hdr->tos = 0;
+	ip_hdr->protocol = IPPROTO_ICMP;
+	ip_hdr->tot_len = htons(sizeof(struct iphdr) + sizeof(struct icmphdr));
+	ip_hdr->id = htons(1);
+	ip_hdr->frag_off = 0;
+	ip_hdr->ttl = 64;
+	ip_hdr->check = 0;
+	ip_hdr->check = htons(checksum((uint16_t *)ip_hdr, sizeof(struct iphdr)));
+
+	uint32_t tmp = ip_hdr->daddr;
+	ip_hdr->daddr = ip_hdr->saddr;
+	ip_hdr->saddr = tmp;
+
+    /* ICMP Header */
+	icmp_hdr->type = type;
+	icmp_hdr->code = 0;
+	icmp_hdr->checksum = 0;
+	icmp_hdr->checksum = htons(checksum((uint16_t *)icmp_hdr, sizeof(struct icmphdr)));
+
+	send_to_link(interface, buf, IP_PACKET_LEN + sizeof(struct icmphdr));
 }

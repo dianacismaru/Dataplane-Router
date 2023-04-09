@@ -23,16 +23,22 @@
 #define IP_PACKET_LEN       sizeof(struct ether_header) + sizeof(struct iphdr)
 #define ARP_PACKET_LEN      sizeof(struct ether_header) + sizeof(struct arp_header)
 
+/* Calculate LPM in the IP Trie */
 extern struct route_table_entry *get_best_route(uint32_t ip_dest);
 
+/* Parse the ARP table and get the entry corresponding the given IP address */
 extern struct arp_entry *get_arp_entry(uint32_t given_ip);
 
+/* Parse the queue and send the packets that have found the MAC destinations */
 extern void parse_cache();
 
+/* Send an ARP Request */
 extern void arp_request(char *buf, struct route_table_entry *route_table_entry);
 
+/* Send an ARP Reply */
 extern void arp_reply(char *buf, int interface);
 
-extern void icmp_generate(char *buf, struct ether_header* eth_hdr, struct iphdr *ip_hdr, int interface,  uint8_t type);
+/* Send an ICMP message depending on the givem type */
+extern void send_icmp(char *buf, int interface, uint8_t type);
 
 #endif /* _UTILS_H_ */

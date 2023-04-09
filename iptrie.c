@@ -52,6 +52,7 @@ void insert(uint32_t ip_address, uint32_t mask, int index) {
     current_node->entry_index = index;
 }
 
+/* Parse the routing table and add each entry in the IP Trie */
 TrieNode *create_ip_trie() {
     root = create_node();
 
@@ -63,6 +64,7 @@ TrieNode *create_ip_trie() {
     return root;
 }
 
+/* Free the IP Trie recursively */
 void free_trienode(TrieNode* node) {
     if (node->bit0) {
         free_trienode(node->bit0);
