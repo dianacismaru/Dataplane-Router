@@ -46,7 +46,7 @@ struct arp_entry *get_arp_entry(uint32_t given_ip) {
 }
 
 /* Parse the queue and send the packets that have found the MAC destinations */
-void parse_cache() {
+void parse_queue() {
 	queue new_q = queue_create();
 
 	while (!queue_empty(q)) {
@@ -110,7 +110,7 @@ void arp_request(char *buf, struct route_table_entry *route_table_entry) {
 	get_interface_mac(route_table_entry->interface, arp_hdr->sha);
 
 	// Target MAC address
-    hwaddr_aton("00:00:00:00:00:00", arp_hdr->tha);
+    hwaddr_aton("ff:ff:ff:ff:ff:ff", arp_hdr->tha);
 
 	// Target IP address
 	arp_hdr->tpa = route_table_entry->next_hop;
@@ -147,7 +147,7 @@ void arp_reply(char *buf, int interface) {
 	arp_hdr->spa = tmp;
 }
 
-/* Send an ICMP message depending on the givem type */
+/* Send an ICMP message depending on the given type */
 void send_icmp(char *buf, int interface, uint8_t type) {
     struct ether_header *eth_hdr = (struct ether_header *) buf;
     struct iphdr *ip_hdr = (struct iphdr *)(buf + sizeof(struct ether_header));

@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 				memcpy(new_entry.mac, arp_hdr->sha, 6);
 				arp_table[arptable_len++] = new_entry;
 
-				parse_cache();
+				parse_queue();
 			}
 		} else {
 			printf("\nIgnored packet\n");

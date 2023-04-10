@@ -39,7 +39,7 @@ extern struct route_table_entry *get_best_route(uint32_t ip_dest);
 extern struct arp_entry *get_arp_entry(uint32_t given_ip);
 
 /* Parse the queue and send the packets that have found the MAC destinations */
-extern void parse_cache();
+extern void parse_queue();
 
 /* Send an ARP Request */
 extern void arp_request(char *buf, struct route_table_entry *route_table_entry);
