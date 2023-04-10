@@ -14,6 +14,9 @@
 /* ARP protocol */
 #define ETHERTYPE_ARP	0x0806
 
+/* Maximum length for routing table and ARP table */
+#define MAX_TABLE_LEN   100000
+
 #define ICMP_ECHOREPLY		0	/* Echo Reply			*/
 #define ICMP_DEST_UNREACH	3	/* Destination Unreachable	*/
 #define ICMP_ECHOREQ		8	/* Echo Request			*/
@@ -22,6 +25,12 @@
 #define ETHER_LEN           sizeof(struct ether_header)
 #define IP_PACKET_LEN       sizeof(struct ether_header) + sizeof(struct iphdr)
 #define ARP_PACKET_LEN      sizeof(struct ether_header) + sizeof(struct arp_header)
+
+/* Packet structure that is stored in the cache */
+typedef struct queued_packet {
+    size_t len;
+    char data[MAX_PACKET_LEN];
+} queued_packet;
 
 /* Calculate LPM in the IP Trie */
 extern struct route_table_entry *get_best_route(uint32_t ip_dest);

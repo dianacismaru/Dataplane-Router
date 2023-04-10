@@ -22,12 +22,11 @@ int main(int argc, char *argv[])
 	// Do not modify this line
 	init(argc - 2, argv + 2);
 
-	rtable = malloc(sizeof(struct route_table_entry) * 100000);
+	rtable = malloc(sizeof(struct route_table_entry) * MAX_TABLE_LEN);
 	DIE(rtable == NULL, "Malloc failed\n");
 
-	arp_table = malloc(sizeof(struct  arp_entry) * 10000);
+	arp_table = malloc(sizeof(struct arp_entry) * MAX_TABLE_LEN);
 	DIE(arp_table == NULL, "Malloc failed\n");
-	arptable_len = 0;
 
 	rtable_len = read_rtable(argv[1], rtable);
 	root = create_ip_trie();
@@ -47,9 +46,11 @@ int main(int argc, char *argv[])
 		host order. For example, ntohs(eth_hdr->ether_type). The oposite is needed when
 		sending a packet on the link, */
 
-		if (eth_hdr->ether_type == htons(ETHERTYPE_IP)) {
+		if (ntohs(eth_hdr->ether_type) == ETHERTYPE_IP) {
 			struct iphdr *ip_hdr = (struct iphdr *)(buf + sizeof(struct ether_header));
 
+			/* Check if the router is the destination of the received packet and the
+			   IP header's protocol is ICMP */
 			if (ip_hdr->daddr == inet_addr(get_interface_ip(interface)) && ip_hdr->protocol == IPPROTO_ICMP) {
 				struct icmphdr *icmp_hdr = (struct icmphdr *)(buf + IP_PACKET_LEN);
 
@@ -97,11 +98,12 @@ int main(int argc, char *argv[])
 				continue;
 			}
 
-			memcpy(eth_hdr->ether_dhost, arp_entry->mac, 6);
 			get_interface_mac(route_table_entry->interface, eth_hdr->ether_shost);
+			memcpy(eth_hdr->ether_dhost, arp_entry->mac, 6);
+
 			send_to_link(route_table_entry->interface, buf, len);
 			
-		} else if (eth_hdr->ether_type == htons(ETHERTYPE_ARP)) {
+		} else if (ntohs(eth_hdr->ether_type) == ETHERTYPE_ARP) {
 			struct arp_header *arp_hdr = (struct arp_header *)(buf + ETHER_LEN);
 
 			/* Check if there's an ongoing request */

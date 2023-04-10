@@ -50,35 +50,42 @@ void parse_cache() {
 	queue new_q = queue_create();
 
 	while (!queue_empty(q)) {
-		char *packet = (char *)queue_deq(q);
+		queued_packet *p = (queued_packet *)queue_deq(q);
 
-		struct ether_header *eth_hdr = (struct ether_header *)packet;
-		struct iphdr *ip_hdr = (struct iphdr *)(packet + ETHER_LEN);
+		struct ether_header *eth_hdr = (struct ether_header *) (p->data);
+		struct iphdr *ip_hdr = (struct iphdr *)(p->data + ETHER_LEN);
 
 		struct route_table_entry *new_route = get_best_route(ip_hdr->daddr);
 		struct arp_entry *arp_entry = get_arp_entry(new_route->next_hop);
 
-		/* If there is an existing entry in the cache, send the packet */
-		if (arp_entry) {
+		/* Skip the packet if the entry was not yet found */
+		if (!arp_entry) {
+			queue_enq(new_q, p);
+		} else {
+			/* If there is an existing entry in the cache, send the packet */
 			memcpy(eth_hdr->ether_dhost, arp_entry->mac, 6);
 			get_interface_mac(new_route->interface, eth_hdr->ether_shost);
-			send_to_link(new_route->interface, packet, IP_PACKET_LEN);
-		} else {
-			queue_enq(new_q, packet);
+			send_to_link(new_route->interface, p->data, p->len);
 		}
 	}
-	q = new_q;
+
+	/* Restore the queue */
+	while (!queue_empty(new_q)) {
+		queued_packet *p = (queued_packet *)(queue_deq(new_q));
+		queue_enq(q, &p);
+	}
 }
 
 /* Send an ARP Request */
 void arp_request(char *buf, struct route_table_entry *route_table_entry) {
-	char packet[MAX_PACKET_LEN];
-	memcpy(packet, buf, IP_PACKET_LEN);
-
-	queue_enq(q, packet);
-
 	struct ether_header *eth_hdr = (struct ether_header *) buf;
 	struct arp_header *arp_hdr = (struct arp_header *) (buf + ETHER_LEN);
+
+	queued_packet p;
+	p.len = ARP_PACKET_LEN;
+	memcpy(p.data, buf, ARP_PACKET_LEN);
+
+	queue_enq(q, &p);
 
 	// Ethernet Header
 	eth_hdr->ether_type = htons(ETHERTYPE_ARP);
