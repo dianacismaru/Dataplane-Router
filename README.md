@@ -8,8 +8,6 @@
 3. [IPv4 Protocol](#3-ipv4-protocol)
 4. [ICMP Protocol](#4-icmp-protocol)
 5. [ARP Protocol](#5-arp-protocol)
-6. [Main Difficulties](#6-main-difficulties)
-7. [Resources](#7-resources)
 
 ## 1. Description of the Project
 This project implements the process of **forwarding** in a Dataplane Router.
@@ -69,11 +67,3 @@ local cache, and then the queue is parsed. Where MAC address has been found, the
 packet is sent to the best route. The rest of the packets remain in the queue.
 Because I needed to keep the initial order of the packets in queue, I had to
 create a temporary queue.
-
-
-## 6. Main Difficulties
-The main difficulties in this project came from debugging. I found Wireshark
-pretty hard to understand. I also spent a few days to realise that I cannot swap
-the values of two fields of a structure. Jokes on me.
-
-Other than that, I find this homework very, very useful.
